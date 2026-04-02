@@ -10,10 +10,11 @@ from fastapi import FastAPI
 from app.config.db import db
 
 # Import your route modules here
-from app.routes import auth, fraud  # <- THIS IS MISSING
+from app.routes import auth, fraud, transactions
 
 app = FastAPI()
 
 # Include your routes
 app.include_router(auth.router)
 app.include_router(fraud.router)
+app.include_router(transactions.router)
