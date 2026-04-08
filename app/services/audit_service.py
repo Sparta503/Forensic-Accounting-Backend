@@ -1,7 +1,7 @@
 import datetime
 from typing import Any, Dict, List, Optional
 
-from pymongo import InsertOne, UpdateOne
+from bson import ObjectId
 
 from app.database.collections import audit_logs_collection
 
@@ -11,10 +11,19 @@ async def create_audit_log(entry: Dict[str, Any]) -> str:
     return str(result.inserted_id)
 
 
+def _serialize_audit_log(doc: Dict[str, Any]) -> Dict[str, Any]:
+    doc = doc.copy()
+    if "_id" in doc:
+        doc["_id"] = str(doc["_id"])
+    return doc
+
+
 async def get_audit_log_by_id(audit_log_id: str) -> Optional[Dict[str, Any]]:
     oid = ObjectId(audit_log_id)
     doc = await audit_logs_collection.find_one({"_id": oid})
-    return doc
+    if not doc:
+        return None
+    return _serialize_audit_log(doc)
 
 
 async def list_audit_logs(
@@ -42,4 +51,4 @@ async def list_audit_logs(
 
     cursor = audit_logs_collection.find(query).skip(skip).limit(limit)
     docs = await cursor.to_list(length=limit)
-    return docs
+    return [_serialize_audit_log(d) for d in docs]
