@@ -1,5 +1,5 @@
 # app/routes/fraud.py
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
 router = APIRouter(
     prefix="/fraud",
