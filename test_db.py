@@ -13,6 +13,4 @@ async def test():
 
     # list collections
     collections = await db.list_collection_names()
-    print("Collections in DB:", collections)
-
-asyncio.run(test())
+    print("Collections in DB:", col
