@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     MONGO_URI: str
     DB_NAME: str
     JWT_SECRET: str
+    JWT_EXPIRES_HOURS: int = 2
 
     class Config:
         env_file = None
