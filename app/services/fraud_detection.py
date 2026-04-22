@@ -64,7 +64,7 @@ def detect_fraud(transaction: dict, recent_transactions: list):
     risk_score = 0
     reasons = []
 
-    amount = transaction.get("amount", 0)
+    amount = transaction.get("Amount", transaction.get("amount", 0))
 
     # -------------------------------
     # 1. RULE: Large transaction
@@ -91,14 +91,19 @@ def detect_fraud(transaction: dict, recent_transactions: list):
     # -------------------------------
     # 3. LOCATION RULE
     # -------------------------------
-    if transaction.get("location") not in ["ZW"]:
+    location = transaction.get("Location", transaction.get("location"))
+    if location is not None and location not in ["ZW"]:
         risk_score += 10
         reasons.append("Unusual location")
 
     # -------------------------------
     # 4. Z-SCORE DETECTION
     # -------------------------------
-    amounts = [tx.get("amount", 0) for tx in recent_transactions if "amount" in tx]
+    amounts = [
+        tx.get("Amount", tx.get("amount", 0))
+        for tx in recent_transactions
+        if ("Amount" in tx) or ("amount" in tx)
+    ]
 
     if amounts:
         z = calculate_z_score(amount, amounts)
