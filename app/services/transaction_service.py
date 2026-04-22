@@ -1,6 +1,6 @@
 # app/services/transaction_service.py
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from bson import ObjectId
 from app.database.collections import transactions_collection
@@ -65,11 +65,24 @@ async def list_transactions(
     skip: int = 0,
     limit: int = 50,
     user_id: Optional[str] = None,
+    is_flagged: Optional[bool] = None,
+    min_amount: Optional[float] = None,
+    max_amount: Optional[float] = None,
 ):
     query: Dict[str, Any] = {}
 
     if user_id:
         query["user_id"] = user_id
+
+    if is_flagged is not None:
+        query["is_flagged"] = is_flagged
+
+    if min_amount is not None or max_amount is not None:
+        query["Amount"] = {}
+        if min_amount is not None:
+            query["Amount"]["$gte"] = min_amount
+        if max_amount is not None:
+            query["Amount"]["$lte"] = max_amount
 
     cursor = transactions_collection.find(query).skip(skip).limit(limit)
     docs = await cursor.to_list(length=limit)
@@ -168,3 +181,32 @@ async def delete_transaction(transaction_id: str, user_id: str) -> bool:
     })
 
     return True
+
+
+# =========================
+# BULK IMPORT TRANSACTIONS
+# =========================
+async def bulk_import_transactions(
+    transactions: List[dict],
+    user_id: str,
+    *,
+    batch_size: int = 1000,
+) -> Dict[str, Any]:
+    inserted = 0
+    if not transactions:
+        return {"inserted": 0, "batches": 0}
+
+    batches = 0
+    now = datetime.utcnow()
+
+    for i in range(0, len(transactions), batch_size):
+        chunk = [t.copy() for t in transactions[i : i + batch_size]]
+        for doc in chunk:
+            doc["user_id"] = user_id
+            doc.setdefault("timestamp", now)
+
+        result = await transactions_collection.insert_many(chunk, ordered=False)
+        inserted += len(result.inserted_ids)
+        batches += 1
+
+    return {"inserted": inserted, "batches": batches}
