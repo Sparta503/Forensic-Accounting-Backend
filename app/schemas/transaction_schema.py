@@ -1,53 +1,38 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class TransactionCreate(BaseModel):
-    # user_id will be auto-filled from JWT, not provided by client
-    user_id: Optional[str] = Field(None, example="Automatically assigned from JWT")
-    amount: float = Field(..., example=120.5)
-    description: Optional[str] = Field(None, example="Payment for groceries")
-    currency: Optional[str] = Field(None, example="USD")
-    transaction_date: Optional[datetime] = Field(None, example="2026-04-08T23:06:54.452Z")
-    merchant: Optional[str] = Field(None, example="Walmart")
-    category: Optional[str] = Field(None, example="Groceries")
-    from_account: Optional[str] = Field(None, example="Checking Account")
-    to_account: Optional[str] = Field(None, example="Merchant Account")
-    location: Optional[str] = Field(None, example="New York")
-    is_flagged: bool = Field(False, example=False)
-    metadata: Optional[Dict[str, Any]] = Field(None, example={"notes": "Weekly groceries"})
+    model_config = ConfigDict(populate_by_name=True)
 
-    class Config:
-        schema_extra = {
-            "example": {
-                "amount": 120.5,
-                "description": "Payment for groceries",
-                "currency": "USD",
-                "transaction_date": "2026-04-08T23:06:54.452Z",
-                "merchant": "Walmart",
-                "category": "Groceries",
-                "from_account": "Checking Account",
-                "to_account": "Merchant Account",
-                "location": "New York",
-                "is_flagged": False,
-                "metadata": {"notes": "Weekly groceries"},
-                "user_id": "Automatically assigned from JWT"
-            }
-        }
+    date: str = Field(alias="Date")
+    mode: Optional[str] = Field(default=None, alias="Mode")
+    category: Optional[str] = Field(default=None, alias="Category")
+    subcategory: Optional[str] = Field(default=None, alias="Subcategory")
+    note: Optional[str] = Field(default=None, alias="Note")
+    amount: float = Field(alias="Amount")
+    income_expense: Optional[str] = Field(default=None, alias="Income/Expense")
+    currency: Optional[str] = Field(default=None, alias="Currency")
+
+    user_id: Optional[str] = None
+    is_flagged: bool = False
+    metadata: Optional[Dict[str, Any]] = None
 
 
 class TransactionUpdate(BaseModel):
-    amount: Optional[float] = None
-    description: Optional[str] = None
-    currency: Optional[str] = None
-    transaction_date: Optional[datetime] = None
-    merchant: Optional[str] = None
-    category: Optional[str] = None
-    from_account: Optional[str] = None
-    to_account: Optional[str] = None
-    location: Optional[str] = None
+    model_config = ConfigDict(populate_by_name=True)
+
+    date: Optional[str] = Field(default=None, alias="Date")
+    mode: Optional[str] = Field(default=None, alias="Mode")
+    category: Optional[str] = Field(default=None, alias="Category")
+    subcategory: Optional[str] = Field(default=None, alias="Subcategory")
+    note: Optional[str] = Field(default=None, alias="Note")
+    amount: Optional[float] = Field(default=None, alias="Amount")
+    income_expense: Optional[str] = Field(default=None, alias="Income/Expense")
+    currency: Optional[str] = Field(default=None, alias="Currency")
+
     is_flagged: Optional[bool] = None
     metadata: Optional[Dict[str, Any]] = None
 
@@ -56,17 +41,18 @@ class TransactionOut(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     id: str = Field(alias="_id", example="643e5b8d2f3b2a1f4c8b4567")
-    user_id: Optional[str] = Field(None, example="643e5b8d2f3b2a1f4c8b1234")
-    amount: float = Field(..., example=120.5)
-    description: Optional[str] = Field(None, example="Payment for groceries")
-    currency: Optional[str] = Field(None, example="USD")
-    transaction_date: Optional[datetime] = Field(None, example="2026-04-08T23:06:54.452Z")
-    merchant: Optional[str] = Field(None, example="Walmart")
-    category: Optional[str] = Field(None, example="Groceries")
-    from_account: Optional[str] = Field(None, example="Checking Account")
-    to_account: Optional[str] = Field(None, example="Merchant Account")
-    location: Optional[str] = Field(None, example="New York")
-    is_flagged: bool = Field(False, example=False)
+
+    date: str = Field(alias="Date")
+    mode: Optional[str] = Field(default=None, alias="Mode")
+    category: Optional[str] = Field(default=None, alias="Category")
+    subcategory: Optional[str] = Field(default=None, alias="Subcategory")
+    note: Optional[str] = Field(default=None, alias="Note")
+    amount: float = Field(alias="Amount")
+    income_expense: Optional[str] = Field(default=None, alias="Income/Expense")
+    currency: Optional[str] = Field(default=None, alias="Currency")
+
+    user_id: Optional[str] = None
+    is_flagged: bool = False
     is_fraud: Optional[bool] = Field(None, example=False)
     risk_score: Optional[int] = Field(None, example=15)
     fraud_reasons: Optional[List[str]] = Field(None, example=["High-risk merchant"])
