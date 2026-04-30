@@ -166,6 +166,17 @@ async def update_transaction(transaction_id: str, update_fields: dict, user_id: 
     if not old_doc:
         return None
 
+    # Ensure consistency: if `is_fraud` is being set to a truthy value,
+    # also mark the transaction as flagged unless the caller explicitly sets `is_flagged`.
+    try:
+        incoming_is_fraud = update_fields.get("is_fraud")
+    except Exception:
+        incoming_is_fraud = None
+
+    if incoming_is_fraud:
+        if "is_flagged" not in update_fields:
+            update_fields["is_flagged"] = True
+
     result = await transactions_collection.update_one(
         {"_id": oid},
         {"$set": update_fields}
@@ -189,6 +200,25 @@ async def update_transaction(transaction_id: str, update_fields: dict, user_id: 
     })
 
     return _serialize_transaction(updated_doc)
+
+
+async def sync_flagged_from_fraud(batch_size: int = 1000) -> dict:
+    """One-off utility: set `is_flagged=True` for any document where `is_fraud` is truthy.
+
+    Returns a summary dict with counts. This is intentionally an async utility the
+    operator can run in a REPL or task runner to retroactively fix existing records.
+    """
+    query = {"is_fraud": {"$in": [True, "true", "True", 1, "1"]}}
+    cursor = transactions_collection.find(query).batch_size(batch_size)
+    updated = 0
+    async for doc in cursor:
+        _id = doc.get("_id")
+        if not doc.get("is_flagged"):
+            res = await transactions_collection.update_one({"_id": _id}, {"$set": {"is_flagged": True}})
+            if res.modified_count > 0:
+                updated += 1
+
+    return {"updated": updated}
 
 
 # =========================
