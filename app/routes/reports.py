@@ -13,7 +13,9 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 async def get_fraud_summary(
     current_user: dict = Depends(get_current_user)
 ):
-    return await fraud_summary(current_user["user_id"])
+    role = current_user.get("role", "")
+    target_user = None if role in ("admin", "management") else current_user["user_id"]
+    return await fraud_summary(target_user)
 
 
 # =========================
@@ -23,4 +25,6 @@ async def get_fraud_summary(
 async def get_risk_analysis(
     current_user: dict = Depends(get_current_user)
 ):
-    return await risk_analysis(current_user["user_id"])
+    role = current_user.get("role", "")
+    target_user = None if role in ("admin", "management") else current_user["user_id"]
+    return await risk_analysis(target_user)
