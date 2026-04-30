@@ -187,7 +187,7 @@ async def list_transactions(
         is_flagged=is_flagged,
         min_amount=min_amount,
         max_amount=max_amount,
-        user_id=current_user["user_id"]
+        user_id=None
     )
 
 
@@ -199,7 +199,7 @@ async def get_transaction(
     transaction_id: str,
     current_user: dict = Depends(get_current_user)
 ):
-    doc = await get_transaction_by_id(transaction_id, current_user["user_id"])
+    doc = await get_transaction_by_id(transaction_id, None)
 
     if not doc:
         raise HTTPException(
