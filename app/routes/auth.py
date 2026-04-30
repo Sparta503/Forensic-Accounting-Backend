@@ -1,6 +1,8 @@
 import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from typing import Optional
 from pydantic import BaseModel, EmailStr
 from typing import Literal
 from bson import ObjectId
@@ -13,6 +15,10 @@ from app.utils.password import verify_password, hash_password
 from app.utils.jwt import create_token
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+# Optional bearer dependency for endpoints like logout where a missing/invalid
+# token should not prevent the action from completing.
+optional_bearer = HTTPBearer(auto_error=False)
 
 
 # =========================
@@ -80,24 +86,40 @@ async def register(data: RegisterRequest):
 
 
 @router.post("/logout")
-async def logout(current_user: dict = Depends(get_current_user)):
-    user_id = current_user.get("user_id")
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Invalid token")
+async def logout(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(optional_bearer)
+):
+    """Logout endpoint: attempt to decode the bearer token if present and
+    mark the user as logged out. If no token is provided (common from some
+    frontends), return OK without raising 401 so the UI can clear client state.
+    """
+    user_id = None
+    role = None
 
-    now = datetime.datetime.utcnow()
-    await users_collection.update_one(
-        {"_id": ObjectId(user_id)},
-        {"$set": {"is_logged_in": False, "updated_at": now}},
-    )
+    if credentials and credentials.credentials:
+        token = credentials.credentials
+        try:
+            payload = jwt.decode(token, settings.JWT_SECRET, algorithms=["HS256"])
+            user_id = payload.get("user_id")
+            role = payload.get("role")
+        except Exception:
+            # Don't fail logout if token is invalid/expired; just proceed to return OK
+            user_id = None
 
-    await create_audit_log(
-        action="LOGOUT",
-        user_id=str(user_id),
-        entity="user",
-        entity_id=str(user_id),
-        metadata={"user_id": str(user_id), "role": current_user.get("role")},
-    )
+    if user_id:
+        now = datetime.datetime.utcnow()
+        await users_collection.update_one(
+            {"_id": ObjectId(user_id)},
+            {"$set": {"is_logged_in": False, "updated_at": now}},
+        )
+
+        await create_audit_log(
+            action="LOGOUT",
+            user_id=str(user_id),
+            entity="user",
+            entity_id=str(user_id),
+            metadata={"user_id": str(user_id), "role": role},
+        )
 
     return {"ok": True}
 
