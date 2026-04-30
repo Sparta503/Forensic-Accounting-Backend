@@ -12,6 +12,49 @@ def _serialize_transaction(doc: dict) -> dict:
     doc = doc.copy()
     if "_id" in doc:
         doc["_id"] = str(doc["_id"])
+    # Normalize common field names to the API's response aliases expected by Pydantic
+    # Ensure the response includes alias keys like 'Date', 'Amount', 'Note', etc.
+    try:
+        # transaction_date -> Date
+        if "transaction_date" in doc and "Date" not in doc:
+            td = doc.get("transaction_date")
+            if isinstance(td, datetime):
+                doc["Date"] = td.isoformat()
+            else:
+                doc["Date"] = str(td)
+
+        # lower-case date -> Date
+        if "date" in doc and "Date" not in doc:
+            d = doc.get("date")
+            if isinstance(d, datetime):
+                doc["Date"] = d.isoformat()
+            else:
+                doc["Date"] = str(d)
+
+        # amount -> Amount
+        if "amount" in doc and "Amount" not in doc:
+            doc["Amount"] = doc.get("amount")
+
+        # description -> Note
+        if "description" in doc and "Note" not in doc:
+            doc["Note"] = doc.get("description")
+
+        # map other common fields to expected aliases if present
+        mappings = {
+            "category": "Category",
+            "currency": "Currency",
+            "mode": "Mode",
+            "subcategory": "Subcategory",
+            "note": "Note",
+        }
+
+        for src, alias in mappings.items():
+            if src in doc and alias not in doc:
+                doc[alias] = doc.get(src)
+    except Exception:
+        # Best-effort mapping; avoid raising during serialization
+        pass
+
     return doc
 
 
@@ -37,6 +80,10 @@ async def create_transaction(transaction: dict, user_id: str) -> dict:
     transaction["is_fraud"] = fraud_result.get("is_fraud", False)
     transaction["risk_score"] = fraud_result.get("risk_score", 0)
     transaction["fraud_reasons"] = fraud_result.get("reasons", [])
+    # Mark transaction as flagged when analysis indicates fraud or ML flagged anomaly
+    ml_info = fraud_result.get("ml_score") or {}
+    ml_flag = ml_info.get("ml_flag") if isinstance(ml_info, dict) else False
+    transaction["is_flagged"] = bool(fraud_result.get("is_fraud", False) or ml_flag)
 
     result = await transactions_collection.insert_one(transaction)
 
@@ -45,12 +92,11 @@ async def create_transaction(transaction: dict, user_id: str) -> dict:
         raise RuntimeError("Failed to create transaction")
 
     # 🔥 AUDIT LOG
-    await create_audit_log({
+    await create_audit_log(**{
         "user_id": user_id,
         "action": "CREATE",
         "entity": "transaction",
         "entity_id": str(result.inserted_id),
-        "timestamp": datetime.utcnow(),
         "changes": transaction
     })
 
@@ -69,10 +115,8 @@ async def list_transactions(
     min_amount: Optional[float] = None,
     max_amount: Optional[float] = None,
 ):
+    # NOTE: Removed per-user filtering so queries return global data
     query: Dict[str, Any] = {}
-
-    if user_id:
-        query["user_id"] = user_id
 
     if is_flagged is not None:
         query["is_flagged"] = is_flagged
@@ -92,13 +136,14 @@ async def list_transactions(
 # =========================
 # GET TRANSACTION
 # =========================
-async def get_transaction_by_id(transaction_id: str, user_id: str) -> Optional[dict]:
+async def get_transaction_by_id(transaction_id: str, user_id: Optional[str] = None) -> Optional[dict]:
     oid = _parse_object_id(transaction_id)
 
-    doc = await transactions_collection.find_one({
-        "_id": oid,
-        "user_id": user_id
-    })
+    query: Dict[str, Any] = {"_id": oid}
+    if user_id:
+        query["user_id"] = user_id
+
+    doc = await transactions_collection.find_one(query)
 
     if not doc:
         return None
@@ -113,16 +158,16 @@ async def update_transaction(transaction_id: str, update_fields: dict, user_id: 
     oid = _parse_object_id(transaction_id)
 
     # Get old data (for audit)
+    # Allow global updates: do not restrict by `user_id`
     old_doc = await transactions_collection.find_one({
-        "_id": oid,
-        "user_id": user_id
+        "_id": oid
     })
 
     if not old_doc:
         return None
 
     result = await transactions_collection.update_one(
-        {"_id": oid, "user_id": user_id},
+        {"_id": oid},
         {"$set": update_fields}
     )
 
@@ -132,12 +177,11 @@ async def update_transaction(transaction_id: str, update_fields: dict, user_id: 
     updated_doc = await transactions_collection.find_one({"_id": oid})
 
     # 🔥 AUDIT LOG (track changes)
-    await create_audit_log({
+    await create_audit_log(**{
         "user_id": user_id,
         "action": "UPDATE",
         "entity": "transaction",
         "entity_id": transaction_id,
-        "timestamp": datetime.utcnow(),
         "changes": {
             "before": _serialize_transaction(old_doc),
             "after": _serialize_transaction(updated_doc)
@@ -154,29 +198,22 @@ async def delete_transaction(transaction_id: str, user_id: str) -> bool:
     oid = _parse_object_id(transaction_id)
 
     # Get data before delete
-    doc = await transactions_collection.find_one({
-        "_id": oid,
-        "user_id": user_id
-    })
+    doc = await transactions_collection.find_one({"_id": oid})
 
     if not doc:
         return False
 
-    result = await transactions_collection.delete_one({
-        "_id": oid,
-        "user_id": user_id
-    })
+    result = await transactions_collection.delete_one({"_id": oid})
 
     if result.deleted_count == 0:
         return False
 
     # 🔥 AUDIT LOG
-    await create_audit_log({
+    await create_audit_log(**{
         "user_id": user_id,
         "action": "DELETE",
         "entity": "transaction",
         "entity_id": transaction_id,
-        "timestamp": datetime.utcnow(),
         "changes": _serialize_transaction(doc)
     })
 
