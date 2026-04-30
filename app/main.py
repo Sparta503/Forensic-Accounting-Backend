@@ -11,12 +11,13 @@ env_path = Path(__file__).resolve().parent.parent / ".env"
 load_dotenv(dotenv_path=env_path)
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from app.config.settings import settings
 
 # Import routes
-from app.routes import auth, fraud, transactions, financial
+from app.routes import auth, fraud, transactions, financial, audit, users, tasks
 
 
 # -------------------------------
@@ -45,12 +46,30 @@ app = FastAPI(
 
 
 # -------------------------------
+# CORS (Frontend Access)
+# -------------------------------
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# -------------------------------
 # Register Routes
 # -------------------------------
 app.include_router(auth.router)
 app.include_router(fraud.router)
 app.include_router(transactions.router)
 app.include_router(financial.router)
+app.include_router(audit.router)
+app.include_router(audit.logs_router)
+app.include_router(users.router)
+app.include_router(tasks.router)
+app.include_router(tasks.management_router)
+app.include_router(tasks.department_router)
 app.include_router(reports.router)
 app.include_router(analysis.router)
 
@@ -61,6 +80,6 @@ app.include_router(analysis.router)
 @app.get("/")
 async def root():
     return {
-        "message": "Forensic Accounting API is running 🚀",
+        "message": "Forensic Accounting API is running ",
         "database": settings.DB_NAME
     }
