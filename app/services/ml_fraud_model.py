@@ -131,11 +131,11 @@ class FraudIsolationModel:
         score = self.model.decision_function(X)[0]
         prediction = self.model.predict(X)[0]
 
-        ml_flag = prediction == -1
+        ml_flag = bool(prediction == -1)
 
         return {
             "ml_score": float(score),
-            "ml_flag": ml_flag,
+            "ml_flag": bool(ml_flag),
         }
 
 
