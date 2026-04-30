@@ -1,13 +1,15 @@
-from typing import Dict
+from typing import Dict, Optional
 from app.database.collections import transactions_collection
 
 
 # =========================
 # FRAUD SUMMARY REPORT
 # =========================
-async def fraud_summary(user_id: str) -> Dict:
+async def fraud_summary(user_id: Optional[str]) -> Dict:
+    # If user_id is None, produce org-wide summary (no user filter)
+    match_stage = {"$match": {"user_id": user_id}} if user_id is not None else {"$match": {}}
     pipeline = [
-        {"$match": {"user_id": user_id}},
+        match_stage,
         {
             "$group": {
                 "_id": None,
@@ -55,10 +57,10 @@ async def fraud_summary(user_id: str) -> Dict:
 # =========================
 # RISK ANALYSIS REPORT
 # =========================
-async def risk_analysis(user_id: str) -> Dict:
-    transactions = await transactions_collection.find(
-        {"user_id": user_id}
-    ).to_list(1000)
+async def risk_analysis(user_id: Optional[str]) -> Dict:
+    # If user_id is None, return org-wide analysis
+    query = {"user_id": user_id} if user_id is not None else {}
+    transactions = await transactions_collection.find(query).to_list(1000)
 
     if not transactions:
         return {
